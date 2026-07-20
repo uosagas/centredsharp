@@ -24,9 +24,18 @@ public class ConnectWindow : Window
     private int _port = ProfileManager.ActiveProfile.Port;
     private string _username = ProfileManager.ActiveProfile.Username;
     private string _password = PasswordCrypter.Decrypt(ProfileManager.ActiveProfile.Password);
-    private string _clientPath = ProfileManager.ActiveProfile.ClientPath;
+    private string _clientPath = ClientPathOrDefault(ProfileManager.ActiveProfile.ClientPath);
     private bool _showPassword;
     private bool _buttonDisabled;
+
+    private static string ClientPathOrDefault(string clientPath)
+    {
+        if (clientPath.Length == 0 && Directory.Exists(Constants.DEFAULT_CLIENT_PATH))
+        {
+            return Constants.DEFAULT_CLIENT_PATH;
+        }
+        return clientPath;
+    }
     internal string Info = "Not Connected";
     internal Vector4 InfoColor = ImGuiColor.Red;
     private string _profileName = "";
@@ -46,7 +55,7 @@ public class ConnectWindow : Window
             _port = profile.Port;
             _username = profile.Username;
             _password = PasswordCrypter.Decrypt(profile.Password);
-            _clientPath = profile.ClientPath;
+            _clientPath = ClientPathOrDefault(profile.ClientPath);
             Config.Instance.ActiveProfile = profile.Name;
         }
         ImGui.SameLine();

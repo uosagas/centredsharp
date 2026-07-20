@@ -22,4 +22,16 @@
       <ProjectReference Include="..\CentrED\CentrED.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Reference Include="ClassicUO.Assets">
+        <HintPath>..\lib\dotnet\ClassicUO.Assets.dll</HintPath>
+      </Reference>
+      <Reference Include="ClassicUO.IO">
+        <HintPath>..\lib\dotnet\ClassicUO.IO.dll</HintPath>
+      </Reference>
+      <Reference Include="ClassicUO.Utility">
+        <HintPath>..\lib\dotnet\ClassicUO.Utility.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
 </Project>
