@@ -1,6 +1,5 @@
 ﻿using System.Globalization;
 using System.Numerics;
-using System.Xml.Serialization;
 using CentrED.IO;
 using CentrED.IO.Models;
 using CentrED.IO.Models.Centredplus;
@@ -25,7 +24,6 @@ public class LandBrushManagerWindow : Window
     public static readonly Vector2 HalfSize = FullSize / 2;
 
     private string? _tilesBrushPath = "TilesBrush.xml";
-    private static XmlSerializer _xmlSerializer = new(typeof(TilesBrush));
     private string _importStatusText = "";
 
     private string _landBrushNewName = "";
@@ -514,7 +512,7 @@ public class LandBrushManagerWindow : Window
         try
         {
             using var reader = new FileStream(_tilesBrushPath!, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            var tilesBrush = (TilesBrush)_xmlSerializer.Deserialize(reader)!;
+            var tilesBrush = TilesBrush.Load(reader);
             var target = ProfileManager.ActiveProfile.LandBrush;
             target.Clear();
             foreach (var brush in tilesBrush.Brush)

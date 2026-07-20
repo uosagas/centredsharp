@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using CentrED.IO;
 using CentrED.IO.Models;
 using Microsoft.Xna.Framework.Input;
 
@@ -38,12 +39,6 @@ public static class Config
 {
     private static readonly TimeSpan ConfigSaveRate = TimeSpan.FromSeconds(30);
     private static DateTime LastConfigSave = DateTime.Now;
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        IncludeFields = true,
-        WriteIndented = true,
-    };
-    
     public static ConfigRoot Instance;
     private static string _configFilePath = "settings.json";
 
@@ -52,11 +47,11 @@ public static class Config
         if (!File.Exists(_configFilePath))
         {
             var newConfig = new ConfigRoot();
-            File.WriteAllText(_configFilePath, JsonSerializer.Serialize(newConfig));
+            File.WriteAllText(_configFilePath, JsonSerializer.Serialize(newConfig, CedJsonContext.Default.ConfigRoot));
         }
 
         var jsonText = File.ReadAllText(_configFilePath);
-        Instance = JsonSerializer.Deserialize<ConfigRoot>(jsonText, SerializerOptions);
+        Instance = JsonSerializer.Deserialize(jsonText, CedJsonContext.Default.ConfigRoot);
         if (Instance.GraphicsDriver != "Auto")
             Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", Instance.GraphicsDriver);
     }
@@ -71,7 +66,7 @@ public static class Config
 
     public static void Save()
     {
-        File.WriteAllText(_configFilePath, JsonSerializer.Serialize(Instance, SerializerOptions));
+        File.WriteAllText(_configFilePath, JsonSerializer.Serialize(Instance, CedJsonContext.Default.ConfigRoot));
         LastConfigSave = DateTime.Now;
     }
 }
