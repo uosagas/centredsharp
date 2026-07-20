@@ -296,8 +296,15 @@ public class MapManager
 
     public void Load(string clientPath)
     {
+        // Version detection needs the plaintext tiledata size, so a UO-Sagas
+        // encrypted tiledata.sag can't be judged by its on-disk length. Like
+        // the loaders, prefer .sag over a possibly stale plain .mul.
         var tiledataFile = Path.Combine(clientPath, "tiledata.mul");
-        var clientVersion = new FileInfo(tiledataFile).Length switch
+        var tiledataSag = Path.ChangeExtension(tiledataFile, SagCrypto.Extension);
+        var tiledataSize = File.Exists(tiledataSag)
+            ? SagCrypto.GetPlaintextSize(tiledataSag)
+            : new FileInfo(tiledataFile).Length;
+        var clientVersion = tiledataSize switch
         {
             >= 3188736 => ClientVersion.CV_7090,
             >= 1644544 => ClientVersion.CV_7000,

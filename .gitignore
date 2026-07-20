@@ -2,6 +2,7 @@ bin/
 obj/
 output/
 /packages/
+/tools/cuo-sag/.work/
 riderModule.iml
 /_ReSharper.Caches/
 .idea

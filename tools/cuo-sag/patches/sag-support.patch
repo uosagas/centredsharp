@@ -1,0 +1,143 @@
+diff --git a/src/ClassicUO.Assets/UOFileManager.cs b/src/ClassicUO.Assets/UOFileManager.cs
+index 0dfac5283..05ec31f70 100644
+--- a/src/ClassicUO.Assets/UOFileManager.cs
++++ b/src/ClassicUO.Assets/UOFileManager.cs
+@@ -135,6 +135,21 @@ namespace ClassicUO.Assets
+                 }
+             }
+ 
++            // UO-Sagas: prefer the encrypted .sag sibling over the plain .mul
++            // (decrypted transparently by MMFileReader). The game client reads
++            // only .sag, so a .mul lying next to it may be stale — the .sag is
++            // the authoritative data. Restricted to .mul requests so index
++            // files like multi.idx never collide with the data file's .sag name.
++            if (file.EndsWith(".mul", StringComparison.OrdinalIgnoreCase))
++            {
++                var sagPath = Path.ChangeExtension(uoFilePath, SagCrypto.Extension);
++
++                if (File.Exists(sagPath))
++                {
++                    return sagPath;
++                }
++            }
++
+             return uoFilePath;
+         }
+ 
+diff --git a/src/ClassicUO.IO/FileReader.cs b/src/ClassicUO.IO/FileReader.cs
+index a94f928ae..dafb567ba 100644
+--- a/src/ClassicUO.IO/FileReader.cs
++++ b/src/ClassicUO.IO/FileReader.cs
+@@ -13,10 +13,13 @@ namespace ClassicUO.IO
+         protected FileReader(FileStream stream)
+         {
+             _stream = stream;
++            Length = stream.Length;
+         }
+ 
+         public string FilePath => _stream.Name;
+-        public long Length => _stream.Length;
++        // Settable so that MMFileReader can report the plaintext length of a
++        // decrypted UO-Sagas .sag file instead of the on-disk ciphertext length.
++        public long Length { get; protected set; }
+         public long Position => _position;
+ 
+         public abstract BinaryReader Reader { get; }
+diff --git a/src/ClassicUO.IO/MMFileReader.cs b/src/ClassicUO.IO/MMFileReader.cs
+index 94674b517..c5c7afeda 100644
+--- a/src/ClassicUO.IO/MMFileReader.cs
++++ b/src/ClassicUO.IO/MMFileReader.cs
+@@ -1,6 +1,7 @@
+-﻿using System;
++using System;
+ using System.IO;
+ using System.IO.MemoryMappedFiles;
++using System.Runtime.InteropServices;
+ 
+ namespace ClassicUO.IO
+ {
+@@ -10,6 +11,10 @@ namespace ClassicUO.IO
+         private readonly MemoryMappedFile _mmf;
+         private readonly BinaryReader _file;
+ 
++        // Plaintext of a decrypted UO-Sagas .sag file (owned by this reader).
++        private IntPtr _sagAllocation;
++        private bool _mappingReleased;
++
+         public MMFileReader(FileStream stream) : base(stream)
+         {
+             if (Length <= 0)
+@@ -33,12 +38,39 @@ namespace ClassicUO.IO
+                 {
+                     byte* ptr = null;
+                     _accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+-                    _file = new BinaryReader(new UnmanagedMemoryStream(ptr, Length));
++
++                    if (SagCrypto.IsSagPath(FilePath))
++                    {
++                        // UO-Sagas encrypted asset: decrypt eagerly and expose
++                        // the plaintext; the ciphertext mapping is released.
++                        (_sagAllocation, long plaintextLength) = SagCrypto.Decrypt(ptr, Length);
++
++                        if (_sagAllocation == IntPtr.Zero)
++                        {
++                            throw new InvalidDataException($"Unable to decrypt {FilePath}: file matches no known .sag format");
++                        }
++
++                        ReleaseMapping();
++                        Length = plaintextLength;
++                        _file = new BinaryReader(new UnmanagedMemoryStream((byte*)_sagAllocation, plaintextLength));
++                    }
++                    else
++                    {
++                        _file = new BinaryReader(new UnmanagedMemoryStream(ptr, Length));
++                    }
+                 }
+             }
++            catch (InvalidDataException)
++            {
++                FreeSagAllocation();
++                ReleaseMapping();
++
++                throw;
++            }
+             catch
+             {
+-                _accessor.SafeMemoryMappedViewHandle.ReleasePointer();
++                FreeSagAllocation();
++                ReleaseMapping();
+ 
+                 throw new Exception("Something went wrong...");
+             }
+@@ -46,11 +78,30 @@ namespace ClassicUO.IO
+ 
+         public override BinaryReader Reader => _file;
+ 
+-        public override void Dispose()
++        private void ReleaseMapping()
+         {
++            if (_mappingReleased)
++                return;
++
++            _mappingReleased = true;
+             _accessor?.SafeMemoryMappedViewHandle.ReleasePointer();
+             _accessor?.Dispose();
+             _mmf?.Dispose();
++        }
++
++        private void FreeSagAllocation()
++        {
++            if (_sagAllocation != IntPtr.Zero)
++            {
++                Marshal.FreeHGlobal(_sagAllocation);
++                _sagAllocation = IntPtr.Zero;
++            }
++        }
++
++        public override void Dispose()
++        {
++            ReleaseMapping();
++            FreeSagAllocation();
+ 
+             base.Dispose();
+         }
